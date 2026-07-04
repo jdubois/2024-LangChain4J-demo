@@ -7,8 +7,40 @@ on:
     branches: [ main ]
 
 jobs:
+  # Runs for direct pushes to main only. Uses the repository-level secrets and starts
+  # immediately, since main can only be updated by trusted maintainers.
   build-and-test:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+
+    env:
+      OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+
+      - name: Build and run tests
+        run: ./mvnw -B verify
+
+  # Runs for pull requests (including Dependabot). Gated behind the "pr-approval"
+  # environment, which requires a maintainer to manually approve the run in the Actions
+  # tab before the job starts. This prevents PR-controlled code from ever getting
+  # automatic access to the OpenAI secrets - they're only released after a human has
+  # reviewed the change.
+  build-and-test-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    environment: pr-approval
 
     env:
       OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
